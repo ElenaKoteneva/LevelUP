@@ -1,0 +1,21 @@
+LIBS +=  \
+-lopencv_core455 \
+-lopencv_highgui455 \
+-lopencv_imgproc455 \
+-lopencv_photo455 \
+-lopencv_imgcodecs455 \
+-lopencv_videoio455 \
+-lopencv_objdetect455 \
+
+INCLUDEPATH += D:/Downloads/OpenCV-MinGW-Build-OpenCV-4.5.5-x64/OpenCV-MinGW-Build-OpenCV-4.5.5-x64/include/
+LIBS +=-L"D:/Downloads/OpenCV-MinGW-Build-OpenCV-4.5.5-x64/OpenCV-MinGW-Build-OpenCV-4.5.5-x64/x64/mingw/bin"
+LIBS +=  \
+-lopencv_core455 \
+-lopencv_highgui455 \
+-lopencv_imgproc455 \
+-lopencv_photo455 \
+-lopencv_imgcodecs455 \
+-lopencv_videoio455 \
+-lopencv_objdetect455 \
+
+https://github.com/aleksey-nikolaev/OpenCV-MinGW-Qt-install/wiki/Qt-pro-file-settings
