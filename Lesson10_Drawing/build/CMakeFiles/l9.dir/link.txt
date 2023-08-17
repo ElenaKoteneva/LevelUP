@@ -1,0 +1,3 @@
+D:\cmake\bin\cmake.exe -E rm -f CMakeFiles\l9.dir/objects.a
+C:\Qt\Qt5.14.2\Tools\mingw730_64\bin\ar.exe cr CMakeFiles\l9.dir/objects.a @CMakeFiles\l9.dir\objects1.rsp
+C:\Qt\Qt5.14.2\Tools\mingw730_64\bin\g++.exe -g -Wl,--whole-archive CMakeFiles\l9.dir/objects.a -Wl,--no-whole-archive -o l9.exe -Wl,--out-implib,libl9.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\l9.dir\linklibs.rsp
