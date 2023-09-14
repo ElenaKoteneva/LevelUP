@@ -32,8 +32,8 @@ MainWindow::MainWindow(QWidget *parent)
     ipm_points[2] = Point2f(FRAME_HEIGHT, FRAME_HEIGHT);
     ipm_points[3] = Point2f(0, FRAME_HEIGHT);
 
-    ipm_mat = Mat(FRAME_HEIGHT, FRAME_HEIGHT, CV_8UC3);
-    warp_inRange = Mat(FRAME_HEIGHT, FRAME_HEIGHT, CV_8UC3);
+    ipm_mat = Mat(FRAME_WIDTH, FRAME_HEIGHT, CV_8UC3);
+    warp_inRange = Mat(FRAME_WIDTH, FRAME_HEIGHT, CV_8UC3);
 
     connect(ui->onOpenVideo, &QPushButton::clicked, this, &MainWindow::openVideo);
     connect(ui->pushButtonCamera, &QPushButton::clicked, this, &MainWindow::openCamera);
@@ -94,11 +94,60 @@ void MainWindow::openCamera()
     qDebug() << "Camera";
 }
 
+Point2f MainWindow::approxLSM(const std::vector<Point> &v)
+{
+    {
+      std::vector<cv::Point2f> pts;
+      float x;
+      float y;
+      float sx = 0;
+      float sy = 0;
+      float sxy = 0;
+
+      if (v.size() == 0) return Point(0, 0);
+
+      for (auto it : v)
+      {
+          x = it.y;
+          sx += x;
+
+          y = it.x;
+          sy += y;
+
+          sxy += x*y;
+          pts.push_back (cv::Point(x, y));
+      }
+
+      float avg_x = sx / v.size ();
+      float avg_y = sy / v.size ();
+      float avg_xy = sxy / v.size ();
+
+      float fx = 0;
+      float fy = 0;
+
+      for (auto it: pts)
+      {
+          fx += (it.x - avg_x)*(it.x - avg_x);
+          fy += (it.y - avg_y)*(it.y - avg_y);
+      }
+
+      float sdev_x = std::sqrt(fx / pts.size());
+      float sdev_y = std::sqrt(fy / pts.size());
+
+      float corr = (avg_xy - avg_x * avg_y) / (sdev_x * sdev_y);
+
+      fy = corr * sdev_y / sdev_x;
+      fx = avg_y - avg_x * fy;
+
+      return cv::Point2f(fx, fy);
+    }
+}
 
 void MainWindow::update()
 {
     if (m_video.read(m_src))
     {
+
         cv::resize(m_src, m_src, Size(FRAME_WIDTH, FRAME_HEIGHT));
         m_src.copyTo(m_dst);
 
@@ -128,24 +177,57 @@ void MainWindow::update()
         m_image = QImage(m_dst.data, m_dst.cols, m_dst.rows, QImage::Format_BGR888);
         ui->label->setPixmap(QPixmap::fromImage(m_image));
 
+        cvtColor(m_src, m_frame_HSV, cv::COLOR_BGR2HSV);
+        inRange(m_frame_HSV, Scalar(0, 0, 190), Scalar(180, 255, 255), m_frame_threshold);
+
+        warpPerspective(m_frame_threshold, warp_inRange, transform_matrix, Size(FRAME_HEIGHT, FRAME_HEIGHT));
+
+        m_idx_left.clear();
+        m_idx_right.clear();
+
+        assert(warp_inRange.cols > 0 && warp_inRange.rows > 0 && warp_inRange.channels() == 1 && warp_inRange.depth() == CV_8U);
+        const int M = warp_inRange.rows;
+        const int N = warp_inRange.cols;
+
+        // Left part
+        for (int m = 0; m < M; ++m)
+        {
+            const char* bin_ptr = warp_inRange.ptr<char>(m);
+            for (int n = 0; n < N/2; ++n)
+            {
+                if (bin_ptr[n] > 0) m_idx_left.push_back(cv::Point(n,m));
+            }
+        }
+        left_line = approxLSM(m_idx_left);
+        cv::line (ipm_mat,
+                  cv::Point (left_line.y * 0 + left_line.x, 0),
+                  cv::Point (left_line.y * (ipm_mat.rows - 1) + left_line.x, ipm_mat.rows - 1),
+                  cv::Scalar{0, 255, 0}, 3);
+        // Right part
+        for (int m = 0; m < M; ++m)
+        {
+            const char* bin_ptr = warp_inRange.ptr<char>(m);
+            for (int n = N/2; n < N; ++n)
+            {
+                if (bin_ptr[n] > 0) m_idx_right.push_back(cv::Point(n,m));
+            }
+        }
+        right_line = approxLSM(m_idx_right);
+        cv::line (ipm_mat,
+                  cv::Point (right_line.y * 0 + right_line.x, 0),
+                  cv::Point (right_line.y * (ipm_mat.rows - 1) + right_line.x, ipm_mat.rows - 1),
+                  cv::Scalar{0, 255, 0}, 3);
+
         m_image = QImage(ipm_mat.data, ipm_mat.cols, ipm_mat.rows, QImage::Format_BGR888);
         ui->Top_View_Src->setPixmap(QPixmap::fromImage(m_image));
 
-       if (ui->threshold->isChecked())
-       {
-           cvtColor(m_src, m_frame_HSV, cv::COLOR_BGR2HSV);
-           inRange(m_frame_HSV, Scalar(0, 0, 200), Scalar(180, 255, 255), m_frame_threshold);
+        m_image = QImage(m_frame_threshold.data, m_frame_threshold.cols, m_frame_threshold.rows, QImage::Format_Grayscale8);
+        ui->inRangeVideo->setPixmap(QPixmap::fromImage(m_image));
 
-           warpPerspective(m_frame_threshold, warp_inRange, transform_matrix, Size(FRAME_HEIGHT, FRAME_HEIGHT));
-
-           m_image = QImage(m_frame_threshold.data, m_frame_threshold.cols, m_frame_threshold.rows, QImage::Format_Grayscale8);
-           ui->inRangeVideo->setPixmap(QPixmap::fromImage(m_image));
-
-           m_image = QImage(warp_inRange.data, warp_inRange.cols, warp_inRange.rows, QImage::Format_Grayscale8);
-           ui->Top_View_InRange->setPixmap(QPixmap::fromImage(m_image));
-
-       }
+        m_image = QImage(warp_inRange.data, warp_inRange.cols, warp_inRange.rows, QImage::Format_Grayscale8);
+        ui->Top_View_InRange->setPixmap(QPixmap::fromImage(m_image));
     }
+
     if (m_src.empty())
     {
         ui->statusbar->showMessage("Frame is empty. Open new video.");
@@ -180,3 +262,4 @@ void MainWindow::changeTrapHeigh()
 {
     trap_heigh = ui->sliderHeigh->value();
 }
+

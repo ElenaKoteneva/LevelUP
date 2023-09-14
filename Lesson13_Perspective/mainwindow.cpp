@@ -66,7 +66,6 @@ void MainWindow::openVideo()
         else
         {
             qDebug() << "Check file *.mp4";
-            ui->statusbar->showMessage("Check file *.mp4");
         }
     }
 }
